@@ -1,21 +1,94 @@
 services:
+
   mysql:
-    image: mysql:9.7
-    ports:
-      - "3306:3306"
+    image: mysql:8.4
+    container_name: petclinic-mysql-1
+
     environment:
-      - MYSQL_ROOT_PASSWORD=
-      - MYSQL_ALLOW_EMPTY_PASSWORD=true
-      - MYSQL_USER=petclinic
-      - MYSQL_PASSWORD=petclinic
-      - MYSQL_DATABASE=petclinic
+      MYSQL_ROOT_PASSWORD: DevopsRoot123
+      MYSQL_DATABASE: petclinic
+      MYSQL_USER: petclinic
+      MYSQL_PASSWORD: petclinic
+
+    ports:
+      - "3307:3306"
+
     volumes:
-      - "./conf.d:/etc/mysql/conf.d:ro"
+      - petclinic-mysql-data:/var/lib/mysql
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pDevopsRoot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - petclinic-network
+
+    restart: unless-stopped
+
+
   postgres:
-    image: postgres:18.4
+    image: postgres:17
+    container_name: petclinic-postgres
+
+    environment:
+      POSTGRES_DB: petclinic
+      POSTGRES_USER: petclinic
+      POSTGRES_PASSWORD: petclinic
+
     ports:
       - "5432:5432"
+
+    volumes:
+      - petclinic-postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petclinic -d petclinic"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - petclinic-network
+
+    restart: unless-stopped
+
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: petclinic:v1
+    container_name: petclinic-app
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - petclinic-network
+
     environment:
-      - POSTGRES_PASSWORD=petclinic
-      - POSTGRES_USER=petclinic
-      - POSTGRES_DB=petclinic
+      SPRING_PROFILES_ACTIVE: mysql
+      MYSQL_URL: jdbc:mysql://mysql:3306/petclinic
+      MYSQL_USER: petclinic
+      MYSQL_PASS: petclinic
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+volumes:
+  petclinic-mysql-data:
+  petclinic-postgres-data:
+
+
+networks:
+  petclinic-network:
+    driver: bridge
